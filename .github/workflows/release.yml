@@ -1,4 +1,4 @@
-name: Build and Release De-AI Google Search Extension
+name: Build and Release Google AI Overview Hider Extension
 on:
   push:
     branches:
@@ -29,7 +29,7 @@ jobs:
           NEW_VERSION=$(grep -o '"version": "[^"]*"' manifest.json | cut -d'"' -f4)
           if [ -z "$NEW_VERSION" ]; then exit 1; fi
 
-          # manual triggers skips version check
+          # manual triggers -> skip version check
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "should_release=true" >> $GITHUB_OUTPUT
             echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
@@ -45,6 +45,7 @@ jobs:
               echo "should_release=false" >> $GITHUB_OUTPUT
             fi
           else
+            # First commit or shallow clone case
             echo "should_release=true" >> $GITHUB_OUTPUT
             echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           fi
@@ -75,6 +76,18 @@ jobs:
         run: |
           echo "${{ secrets.EXTENSION_PRIVATE_KEY }}" | base64 --decode > ${{ steps.package_name.outputs.name }}.pem
           if [ ! -s "${{ steps.package_name.outputs.name }}.pem" ]; then exit 1; fi
+          
+          # Debugging info
+          echo "--- pem info---"
+          ls -l ${{ steps.package_name.outputs.name }}.pem
+          head -n 3 ${{ steps.package_name.outputs.name }}.pem
+          echo "--- end pem info ---"
+
+      - name: Create CRX Package
+        run: |
+          npm install -g crx
+          crx pack ./ -o ${{ steps.package_name.outputs.name }}.crx -p ./${{ steps.package_name.outputs.name }}.pem
+          echo "CRX creation command finished."
 
       - name: Create CRX Package
         run: |
@@ -83,6 +96,7 @@ jobs:
             --private-key ./${{ steps.package_name.outputs.name }}.pem \
             --directory ./ \
             --output-file ${{ steps.package_name.outputs.name }}.crx
+          echo "CRX creation command finished."
 
       - name: Cleanup
         run: rm ./${{ steps.package_name.outputs.name }}.pem
