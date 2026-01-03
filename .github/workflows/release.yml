@@ -2,7 +2,7 @@ name: Build and Release De-AI Google Search Extension
 on:
   push:
     branches:
-      - main 
+      - develop 
     paths:
       - 'manifest.json'
 
