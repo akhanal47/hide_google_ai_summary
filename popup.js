@@ -1,45 +1,99 @@
-const masterToggle = document.getElementById('masterToggle');
+const urlToggle = document.getElementById('urlToggle');
+const elementToggle = document.getElementById('elementToggle');
+
 let currentGlobalState = true;
+let currentHideMethod = 'udm';
 let isUpdating = false; // prevent race cond
 
-function updateUI(isGloballyEnabled) {
-  masterToggle.checked = isGloballyEnabled;
+function updateUI(isGloballyEnabled, hideMethod) {
   currentGlobalState = isGloballyEnabled;
+  currentHideMethod = hideMethod;
+  
+  if (hideMethod === 'udm') {
+    urlToggle.checked = isGloballyEnabled;
+    elementToggle.checked = false;
+  } else if (hideMethod === 'dom') {
+    urlToggle.checked = false;
+    elementToggle.checked = isGloballyEnabled;
+  }
 }
 
-function handleStateUpdate(action, data) {
+function handleToggleChange(toggleType, isChecked) {
   if (isUpdating) return; // prevent race cond
   isUpdating = true;
 
-  chrome.runtime.sendMessage({ action: action, ...data }, function(response) {
-    isUpdating = false;
-    
-    if (chrome.runtime.lastError) {
-      console.error("Runtime error:", chrome.runtime.lastError);
-      fetchAndUpdateState();
-      return;
-    }
+  let newMethod = toggleType === 'url' ? 'udm' : 'dom';
+  let newEnabled = isChecked;
 
-    if (response && response.success) {
-      // update local state from response
-      if (response.isGloballyEnabled !== undefined) {
-        currentGlobalState = response.isGloballyEnabled;
-        updateUI(currentGlobalState);
+  // if turning on, the other toggle is off (mutual exclusivity)
+  if (isChecked) {
+    // set the method
+    chrome.runtime.sendMessage({ action: 'setHideMethod', method: newMethod }, function(methodResponse) {
+      if (chrome.runtime.lastError) {
+        console.error("Runtime error:", chrome.runtime.lastError);
+        isUpdating = false;
+        fetchAndUpdateState();
+        return;
       }
-      
-      // reload tab if on Google search
-      chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-        if (tabs.length > 0 && tabs[0].id && tabs[0].url) {
-          const tabUrl = tabs[0].url;
-          const isGoogleSearchPage = tabUrl.includes('.google.') && tabUrl.includes('/search?');
-          if (isGoogleSearchPage) {
-            chrome.tabs.reload(tabs[0].id, { bypassCache: true });
+
+      if (methodResponse && methodResponse.success) {
+        // then enable
+        chrome.runtime.sendMessage({ action: 'setGlobalEnable', enabled: true }, function(enableResponse) {
+          isUpdating = false;
+          
+          if (chrome.runtime.lastError) {
+            console.error("Runtime error:", chrome.runtime.lastError);
+            fetchAndUpdateState();
+            return;
           }
-        }
-      });
-    } else {
-      console.error(`Failed to ${action}:`, response ? response.error : "No response");
-      fetchAndUpdateState();
+
+          if (enableResponse && enableResponse.success) {
+            currentGlobalState = true;
+            currentHideMethod = newMethod;
+            updateUI(currentGlobalState, currentHideMethod);
+            reloadGoogleSearchTab();
+          } else {
+            console.error("Failed to enable:", enableResponse ? enableResponse.error : "No response");
+            fetchAndUpdateState();
+          }
+        });
+      } else {
+        isUpdating = false;
+        console.error("Failed to set method:", methodResponse ? methodResponse.error : "No response");
+        fetchAndUpdateState();
+      }
+    });
+  } else {
+    // turning off - just disable
+    chrome.runtime.sendMessage({ action: 'setGlobalEnable', enabled: false }, function(response) {
+      isUpdating = false;
+      
+      if (chrome.runtime.lastError) {
+        console.error("Runtime error:", chrome.runtime.lastError);
+        fetchAndUpdateState();
+        return;
+      }
+
+      if (response && response.success) {
+        currentGlobalState = false;
+        updateUI(currentGlobalState, currentHideMethod);
+        reloadGoogleSearchTab();
+      } else {
+        console.error("Failed to disable:", response ? response.error : "No response");
+        fetchAndUpdateState();
+      }
+    });
+  }
+}
+
+function reloadGoogleSearchTab() {
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    if (tabs.length > 0 && tabs[0].id && tabs[0].url) {
+      const tabUrl = tabs[0].url;
+      const isGoogleSearchPage = tabUrl.includes('.google.') && tabUrl.includes('/search?');
+      if (isGoogleSearchPage) {
+        chrome.tabs.reload(tabs[0].id, { bypassCache: true });
+      }
     }
   });
 }
@@ -48,23 +102,27 @@ function fetchAndUpdateState() {
   chrome.runtime.sendMessage({ action: 'getState' }, function(response) {
     if (chrome.runtime.lastError) {
       console.error("Runtime error fetching state:", chrome.runtime.lastError);
-      updateUI(false); 
+      updateUI(false, 'udm'); 
       return;
     }
 
-    if (response && response.isGloballyEnabled !== undefined) {
+    if (response && response.isGloballyEnabled !== undefined && response.hideMethod !== undefined) {
       currentGlobalState = response.isGloballyEnabled;
-      updateUI(currentGlobalState);
+      currentHideMethod = response.hideMethod;
+      updateUI(currentGlobalState, currentHideMethod);
     } else {
       console.error("Failed to get initial state from background script.");
-      updateUI(false);
+      updateUI(false, 'udm');
     }
   });
 }
 
 fetchAndUpdateState();
 
-masterToggle.addEventListener('change', function() {
-  const isEnabled = masterToggle.checked;
-  handleStateUpdate('setGlobalEnable', { enabled: isEnabled });
+urlToggle.addEventListener('change', function() {
+  handleToggleChange('url', urlToggle.checked);
+});
+
+elementToggle.addEventListener('change', function() {
+  handleToggleChange('element', elementToggle.checked);
 });
