@@ -16,7 +16,7 @@ To use any of these methods please
 
 #### Using the Zip File (<span style="color: Green">Recommended</span>)
 1. Enable the "Developer Mode"
-2. [Dowload](https://github.com/akhanal47/hide-google-ai-summary/releases) and save ```hide-google-ai-summary.zip``` file then unzip it to your desired location.
+2. [Dowload](https://github.com/akhanal47/hide_google_ai_summary/releases) and save ```hide-google-ai-summary.zip``` file then unzip it to your desired location.
 3. Select "Load Unpacked" button & select the folder where you unzipped the extension files.
 
 ---
@@ -24,7 +24,7 @@ The `.crx` file is provided for compatibility only, this method <span style="col
 
 **Using the Crx File**
 1. Enable the "Developer Mode"
-2. [Dowload](https://github.com/akhanal47/hide-google-ai-summary/releases) and save the ``hide-google-ai-summary.crx`` file to your desired location
+2. [Dowload](https://github.com/akhanal47/hide_google_ai_summary/releases) and save the ``hide-google-ai-summary.crx`` file to your desired location
 2. Drag and drop the ```hide-google-ai-summary.crx``` file on the your browser extension page.
 
 ----
