@@ -1,12 +1,15 @@
 let isGloballyEnabled = true;
+let hideMethod = 'udm'; // hide method? 'udm' or 'dom'
 let isInitialized = false;
 
 // Initialize state on extension load
-chrome.storage.sync.get(['isGloballyEnabled'], function(data) {
+chrome.storage.sync.get(['isGloballyEnabled', 'hideMethod'], function(data) {
   isGloballyEnabled = data.isGloballyEnabled !== undefined ? data.isGloballyEnabled : true;
+  hideMethod = data.hideMethod || 'udm';
   
   chrome.storage.sync.set({
-      'isGloballyEnabled': isGloballyEnabled
+      'isGloballyEnabled': isGloballyEnabled,
+      'hideMethod': hideMethod
   }, () => {
       if (chrome.runtime.lastError) {
           console.error("Error saving initial state:", chrome.runtime.lastError);
@@ -22,9 +25,12 @@ function isUdmAddedByExtension(url) {
   return url.endsWith('udm=14') || url.includes('udm=14#') || url.includes('udm=14&') === false;
 }
 
-// URL modification logic
+// URL modification - runs when hideMethod = 'udm'
 chrome.webNavigation.onBeforeNavigate.addListener(function(details) {
   if (details.frameId !== 0) return;
+  
+  // URL modification iff hideMethod = 'udm'
+  if (hideMethod !== 'udm') return;
 
   if (details.url.includes('/search?')) {
     try {
@@ -76,6 +82,9 @@ function updateVisualState(globallyEnabled) {
 
 // clean current tab url immediately when toggled off
 function cleanupCurrentTab() {
+  //cleanup iff using udm 
+  if (hideMethod !== 'udm') return;
+  
   chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
     if (tabs.length === 0 || !tabs[0].id || !tabs[0].url) return;
 
@@ -107,14 +116,15 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === "getState") {
     // Wait for initialization if not ready
     if (!isInitialized) {
-      chrome.storage.sync.get(['isGloballyEnabled'], function(data) {
+      chrome.storage.sync.get(['isGloballyEnabled', 'hideMethod'], function(data) {
         isGloballyEnabled = data.isGloballyEnabled !== undefined ? data.isGloballyEnabled : true;
+        hideMethod = data.hideMethod || 'udm';
         isInitialized = true;
-        sendResponse({ isGloballyEnabled: isGloballyEnabled });
+        sendResponse({ isGloballyEnabled: isGloballyEnabled, hideMethod: hideMethod });
       });
       return true;
     }
-    sendResponse({ isGloballyEnabled: isGloballyEnabled });
+    sendResponse({ isGloballyEnabled: isGloballyEnabled, hideMethod: hideMethod });
 
   } else if (request.action === "setGlobalEnable") {
     const newState = request.enabled;
@@ -131,12 +141,34 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                 if (newState === false) {
                     cleanupCurrentTab();
                 }
-                sendResponse({ success: true, isGloballyEnabled: isGloballyEnabled });
+                sendResponse({ success: true, isGloballyEnabled: isGloballyEnabled, hideMethod: hideMethod });
              }
         });
         return true;
     } else {
         sendResponse({ success: false, error: "Invalid enabled state provided" });
+    }
+  } else if (request.action === "setHideMethod") {
+    const newMethod = request.method;
+    
+    if (newMethod === 'udm' || newMethod === 'dom') {
+      hideMethod = newMethod;
+      
+      chrome.storage.sync.set({ 'hideMethod': hideMethod }, () => {
+        if (chrome.runtime.lastError) {
+          console.error("Error saving hide method:", chrome.runtime.lastError);
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          // If switching to udm method and disabled, cleanup current tab
+          if (hideMethod === 'udm' && !isGloballyEnabled) {
+            cleanupCurrentTab();
+          }
+          sendResponse({ success: true, hideMethod: hideMethod, isGloballyEnabled: isGloballyEnabled });
+        }
+      });
+      return true;
+    } else {
+      sendResponse({ success: false, error: "Invalid hide method provided" });
     }
   }
   
