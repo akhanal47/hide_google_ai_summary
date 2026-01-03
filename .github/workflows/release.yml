@@ -5,6 +5,7 @@ on:
       - develop 
     paths:
       - 'manifest.json'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -68,18 +69,6 @@ jobs:
         run: |
           echo "${{ secrets.EXTENSION_PRIVATE_KEY }}" | base64 --decode > ${{ steps.package_name.outputs.name }}.pem
           if [ ! -s "${{ steps.package_name.outputs.name }}.pem" ]; then exit 1; fi
-          
-          # Debugging info
-          echo "--- pem info---"
-          ls -l ${{ steps.package_name.outputs.name }}.pem
-          head -n 3 ${{ steps.package_name.outputs.name }}.pem
-          echo "--- end pem info ---"
-
-      - name: Create CRX Package
-        run: |
-          npm install -g crx
-          crx pack ./ -o ${{ steps.package_name.outputs.name }}.crx -p ./${{ steps.package_name.outputs.name }}.pem
-          echo "CRX creation command finished."
 
       - name: Create CRX Package
         run: |
@@ -88,7 +77,6 @@ jobs:
             --private-key ./${{ steps.package_name.outputs.name }}.pem \
             --directory ./ \
             --output-file ${{ steps.package_name.outputs.name }}.crx
-          echo "CRX creation command finished."
 
       - name: Cleanup
         run: rm ./${{ steps.package_name.outputs.name }}.pem
