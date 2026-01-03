@@ -32,5 +32,6 @@ The `.crx` file is provided for compatibility only, this method <span style="col
 Privacy Policy and Information related to the permissions can be found [here](assets/privacy_policy.md)
 
 ----
+DOM-based method heavily borrowed from: https://github.com/zbarnz/Google_AI_Overviews_Blocker 
 
 
